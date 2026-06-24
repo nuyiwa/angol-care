@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Calendar, Users, Settings, LogIn, LogOut, Shuffle, ChevronLeft, ChevronRight, Plus, Trash2, Check, X, BarChart3, Star, Clock } from "lucide-react";
-import { loadState, saveState } from "@/lib/supabase";
+import { loadState, saveState, getServerUpdatedAt } from "@/lib/supabase";
 
 // ── 상수 ──
 const VACATIONS = [{ id:"spring",label:"봄방학" },{ id:"summer",label:"여름방학" },{ id:"fall",label:"가을방학" },{ id:"winter",label:"겨울방학" }];
@@ -142,19 +142,41 @@ export default function App() {
   const [user, setUser] = useState<{role:string;id?:string}|null>(null);
   const [tab, setTab] = useState("schedule");
   const [activeVac, setActiveVac] = useState("winter");
+  const serverTimestampRef = useRef<string>('');
 
   useEffect(() => {
-    loadState().then(data => {
+    loadState().then(({ data, updatedAt }) => {
       setState((data as AppState) ?? defState());
+      if (updatedAt) serverTimestampRef.current = updatedAt;
       setIsLoaded(true);
     });
   }, []);
 
   useEffect(() => {
     if (!isLoaded || !state) return;
-    const timer = setTimeout(() => saveState(state), 800);
+    const timer = setTimeout(async () => {
+      const now = new Date().toISOString();
+      await saveState(state);
+      serverTimestampRef.current = now;
+    }, 800);
     return () => clearTimeout(timer);
   }, [state, isLoaded]);
+
+  // 30초마다 서버 변경 확인 → 최신 데이터 자동 반영
+  useEffect(() => {
+    if (!isLoaded) return;
+    const interval = setInterval(async () => {
+      const serverTs = await getServerUpdatedAt();
+      if (serverTs && serverTs > serverTimestampRef.current) {
+        const { data, updatedAt } = await loadState();
+        if (data) {
+          setState(data as AppState);
+          serverTimestampRef.current = updatedAt ?? serverTs;
+        }
+      }
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [isLoaded]);
 
   const update = (fn: (n: AppState) => void) => setState(s => { const n = structuredClone(s!); fn(n); return n; });
 
@@ -172,7 +194,7 @@ export default function App() {
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">안</div>
-            <span className="font-bold text-sm">안골마을학교 돌봄</span>
+            <span className="font-bold text-sm">안골마을학교 근무배치</span>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-sm text-slate-500">{user.role==="admin"?"관리자":state.teachers.find(t=>t.id===user.id)?.name}님</span>
@@ -507,8 +529,8 @@ function ScheduleView({state,vacId}: {state:AppState;vacId:string}) {
     const hasSpark=v.sparkTeachers.some((s: any)=>d>=s.start&&d<=s.end&&s.time===tid);
     return(<div className="space-y-0.5">
       {mt?.type==="team"&&<div className="text-[10px] text-violet-500 truncate">팀:{mt.members.map(tName).join(",")}</div>}
-      {a.care.map((id: string)=><span key={id} className="block bg-sky-100 text-sky-700 text-[10px] px-1 rounded truncate">{tName(id)}</span>)}
-      {a.admin.map((id: string)=><span key={id} className="block bg-emerald-100 text-emerald-700 text-[10px] px-1 rounded truncate">행:{tName(id)}</span>)}
+      {a.care.map((id: string)=><span key={id} className="block bg-sky-100 text-sky-700 text-[10px] px-1 rounded truncate">돌봄 {tName(id)}</span>)}
+      {a.admin.map((id: string)=><span key={id} className="block bg-emerald-100 text-emerald-700 text-[10px] px-1 rounded truncate">행정 {tName(id)}</span>)}
       {hasSpark&&<span className="text-amber-500 text-[10px]">★반짝</span>}
     </div>);
   };
@@ -832,7 +854,7 @@ function ScheduleCalendar({allDates,assignments,targetId,tName}: {allDates:strin
                     {holiday&&<div className="text-[9px] text-rose-300 px-0.5 truncate leading-tight">{holiday}</div>}
                     {items.map((it,j)=>(
                       <div key={j} className={`text-[9px] px-0.5 rounded mb-0.5 truncate leading-tight ${it.kind==="돌봄"?"bg-sky-200 text-sky-800":"bg-emerald-200 text-emerald-800"}`}>
-                        {it.label} {targetId?it.kind:`${tName(it.id)}`}
+                        {targetId ? `${it.label} ${it.kind}` : `${it.kind} ${tName(it.id)}`}
                       </div>
                     ))}
                   </div>
