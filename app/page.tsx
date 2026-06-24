@@ -335,6 +335,14 @@ function SettingsView({state,vacId,update}: {state:AppState;vacId:string;update:
         </div>
       </Card>
 
+      <Card title="초기화">
+        <p className="text-xs text-slate-500 mb-3">이번 방학의 모든 설정·희망선택·배치를 지우고 처음부터 다시 시작합니다.</p>
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={()=>{if(window.confirm("배치와 희망선택만 초기화할까요?")) update(n=>{const vn=n.vacations[vacId as keyof typeof n.vacations] as any;vn.prefs={};vn.prefDone={};vn.assignments={};});}} className="bg-orange-500 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-orange-600"><Trash2 size={15}/>배치·희망만 초기화</button>
+          <button onClick={()=>{if(window.confirm(`${VACATIONS.find(v=>v.id===vacId)?.label} 전체를 초기화할까요?\n모든 설정, 희망선택, 배치가 삭제됩니다.`)) update(n=>{(n.vacations[vacId as keyof typeof n.vacations] as any)=blankVac();});}} className="bg-rose-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-rose-700"><Trash2 size={15}/>방학 전체 초기화</button>
+        </div>
+      </Card>
+
       <Card title="회의 설정">
         <p className="text-xs text-slate-500 mb-2">전체회의: 돌봄 배치 없음 · 팀회의: 해당 멤버 돌봄 제외</p>
         <div className="flex gap-2 items-end mb-2 flex-wrap">
@@ -643,6 +651,10 @@ function TeachersView({state,update}: {state:AppState;update:(fn:(n:AppState)=>v
             <button onClick={()=>update(n=>{n.teachers=n.teachers.filter(x=>x.id!==t.id);})} className="text-rose-400 hover:text-rose-600"><Trash2 size={16}/></button>
           </div>
         ))}
+      </div>
+      <div className="border-t border-slate-200 mt-4 pt-4">
+        <p className="text-xs text-slate-400 mb-2">교사 목록·모든 방학 데이터·누적값을 초기 상태로 되돌립니다.</p>
+        <button onClick={()=>{if(window.confirm("모든 데이터를 초기화할까요?\n교사 목록과 모든 방학 설정이 삭제됩니다.\n이 작업은 되돌릴 수 없습니다.")) update(n=>{const f=defState();n.teachers=f.teachers;n.vacations=f.vacations as any;n.yearlyOffset=f.yearlyOffset;});}} className="bg-rose-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-rose-700"><Trash2 size={15}/>전체 데이터 초기화</button>
       </div>
     </Card>
   );
