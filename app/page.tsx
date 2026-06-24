@@ -338,7 +338,7 @@ function SettingsView({state,vacId,update}: {state:AppState;vacId:string;update:
       <Card title="회의 설정">
         <p className="text-xs text-slate-500 mb-2">전체회의: 돌봄 배치 없음 · 팀회의: 해당 멤버 돌봄 제외</p>
         <div className="flex gap-2 items-end mb-2 flex-wrap">
-          <Field label="날짜"><select value={meet.date||dates[0]||""} onChange={e=>setMeet({...meet,date:e.target.value})} className="p-2 border rounded-lg text-sm min-w-[140px]">{dates.map(d=><option key={d} value={d}>{d}</option>)}</select></Field>
+          <Field label="날짜"><input type="date" value={meet.date} min={v.start||undefined} max={v.end||undefined} onChange={e=>setMeet({...meet,date:e.target.value})} className="p-2 border rounded-lg text-sm w-40"/></Field>
           <Field label="타임"><select value={meet.time} onChange={e=>setMeet({...meet,time:e.target.value})} className="p-2 border rounded-lg text-sm"><option value="am">오전</option><option value="pm">오후</option></select></Field>
           <Field label="종류"><select value={meet.type} onChange={e=>setMeet({...meet,type:e.target.value})} className="p-2 border rounded-lg text-sm"><option value="all">전체회의</option><option value="team">팀회의</option></select></Field>
         </div>
