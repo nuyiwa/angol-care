@@ -28,7 +28,7 @@ const eachDate = (s: string,e: string) => { if(!s||!e) return []; const out: str
 
 // ── 초기값 ──
 const initTeachers = ["이주현","박미소","정설","강은경","김진선","김향","정승민"].map((n,i)=>({id:`t${i+1}`,name:n,pw:"1234"}));
-const blankVac = () => ({ start:"",end:"",careCount:2,adminCount:2,specialDays:{} as Record<string,string>,sparkTeachers:[] as any[],meetings:{} as Record<string,any>,prefs:{} as Record<string,any>,prefDone:{} as Record<string,boolean>,assignments:{} as Record<string,any>,published:false });
+const blankVac = () => ({ start:"",end:"",careCount:2,adminCount:2,vacCount:2,specialDays:{} as Record<string,string>,sparkTeachers:[] as any[],meetings:{} as Record<string,any>,prefs:{} as Record<string,any>,prefDone:{} as Record<string,boolean>,assignments:{} as Record<string,any>,published:false });
 const defState = () => ({ teachers:initTeachers, vacations:{spring:blankVac(),summer:blankVac(),fall:blankVac(),winter:blankVac()}, yearlyOffset:{} as Record<string,number> });
 
 type AppState = ReturnType<typeof defState>
@@ -312,9 +312,10 @@ function SettingsView({state,vacId,update}: {state:AppState;vacId:string;update:
       </Card>
 
       <Card title="인원/횟수 설정">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <Field label="타임당 필요 돌봄 인원"><input type="number" min={0} max={7} value={v.careCount} onChange={e=>sf("careCount",+e.target.value)} className="w-full p-2 border rounded-lg text-sm"/></Field>
           <Field label="교사당 행정 횟수(방학)"><input type="number" min={0} value={v.adminCount} onChange={e=>sf("adminCount",+e.target.value)} className="w-full p-2 border rounded-lg text-sm"/></Field>
+          <Field label="교사당 휴가 횟수(방학)"><input type="number" min={0} value={(v as any).vacCount??2} onChange={e=>sf("vacCount",+e.target.value)} className="w-full p-2 border rounded-lg text-sm"/></Field>
         </div>
       </Card>
 
@@ -470,7 +471,7 @@ function WishGrid({state,vacId,update,slots,careWishes,careTarget}: any) {
         <select value={sel} onChange={e=>setSel(e.target.value)} className="p-2 border rounded-lg text-sm">{state.teachers.map((t: any)=><option key={t.id} value={t.id}>{t.name}</option>)}</select>
         <span className="text-xs bg-sky-50 text-sky-700 px-2 py-1.5 rounded-lg">남은 돌봄 {careRemain}/{careTarget.limit}</span>
         <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-1.5 rounded-lg">남은 행정 {adminRemain}/{v.adminCount}</span>
-        <span className="text-xs bg-orange-50 text-orange-700 px-2 py-1.5 rounded-lg">사용 휴가 {wc.off}회</span>
+        <span className="text-xs bg-orange-50 text-orange-700 px-2 py-1.5 rounded-lg">남은 휴가 {Math.max(0,(v as any).vacCount??2-wc.off)}/{(v as any).vacCount??2}</span>
       </div>
       <div className="max-h-72 overflow-y-auto space-y-1">
         {Object.entries(byDate).map(([d,ss])=>(
@@ -483,13 +484,16 @@ function WishGrid({state,vacId,update,slots,careWishes,careTarget}: any) {
               const others=wishers.filter((w: any)=>w.tid!==sel);
               const cDisabled=(others.length>=slot.need&&cur!=="care")||(careRemain<=0&&cur!=="care");
               const aDisabled=adminRemain<=0&&cur!=="admin";
+              const wVacCount=(v as any).vacCount??2;
+              const wOffRemain=Math.max(0,wVacCount-countWishes(v.prefs[sel]||{}).off);
+              const oDisabled=wOffRemain<=0&&cur!=="off";
               return(
                 <div key={t.id} className="flex-1">
                   <div className="text-[10px] text-slate-400 mb-0.5">{t.label}</div>
                   <div className="flex gap-0.5">
                     <button disabled={cDisabled} onClick={()=>toggle(key,"care",slot)} className={`flex-1 py-1 rounded text-[10px] ${cur==="care"?"bg-sky-500 text-white":cDisabled?"bg-slate-50 text-slate-300 cursor-not-allowed":"bg-slate-100 hover:bg-sky-100"}`}>돌봄 {wishers.length}/{slot.need}</button>
                     <button disabled={aDisabled} onClick={()=>toggle(key,"admin",slot)} className={`flex-1 py-1 rounded text-[10px] ${cur==="admin"?"bg-emerald-500 text-white":aDisabled?"bg-slate-50 text-slate-300 cursor-not-allowed":"bg-slate-100 hover:bg-emerald-100"}`}>행정</button>
-                    <button onClick={()=>toggle(key,"off",slot)} className={`flex-1 py-1 rounded text-[10px] ${cur==="off"?"bg-orange-400 text-white":"bg-slate-100 hover:bg-orange-100"}`}>휴가</button>
+                    <button disabled={oDisabled} onClick={()=>toggle(key,"off",slot)} className={`flex-1 py-1 rounded text-[10px] ${cur==="off"?"bg-orange-400 text-white":oDisabled?"bg-slate-50 text-slate-300 cursor-not-allowed":"bg-slate-100 hover:bg-orange-100"}`}>휴가</button>
                   </div>
                   {others.length>0&&<div className="text-[10px] mt-0.5 flex flex-wrap gap-0.5">{others.map((w: any)=><span key={w.tid} className="bg-slate-100 text-slate-500 px-1 rounded">{tName(w.tid)}</span>)}</div>}
                 </div>
@@ -696,6 +700,8 @@ function TeacherDashboard({state,vacId,user,update}: {state:AppState;vacId:strin
   const careTarget = getCareTarget(state,vacId);
   const careRemain = Math.max(0,careTarget.limit-wc.care);
   const adminRemain = Math.max(0,((v as any).adminCount||0)-wc.admin);
+  const vacCount = (v as any).vacCount??2;
+  const offRemain = Math.max(0,vacCount-wc.off);
 
   const toggle=(key: string,kind: string,slot: any)=>{
     update(n=>{
@@ -744,8 +750,8 @@ function TeacherDashboard({state,vacId,user,update}: {state:AppState;vacId:strin
             <div className="text-lg font-bold text-emerald-700">{adminRemain}<span className="text-xs font-normal text-slate-400"> / {(v as any).adminCount}</span></div>
           </div>
           <div className="flex-1 bg-orange-50 rounded-lg p-2 text-center">
-            <div className="text-xs text-orange-600">사용 휴가</div>
-            <div className="text-lg font-bold text-orange-700">{wc.off}<span className="text-xs font-normal text-slate-400">회</span></div>
+            <div className="text-xs text-orange-600">남은 휴가</div>
+            <div className="text-lg font-bold text-orange-700">{offRemain}<span className="text-xs font-normal text-slate-400"> / {vacCount}</span></div>
           </div>
         </div>
         <p className="text-xs text-slate-500 mb-2">돌봄은 선착순, 한도({careTarget.limit}회)까지 선택 가능. 정원 마감 칸은 선택 불가. <b>휴가</b> 표시 시간은 배치 제외.</p>
@@ -760,13 +766,14 @@ function TeacherDashboard({state,vacId,user,update}: {state:AppState;vacId:strin
                 const others=wishers.filter((w: any)=>w.tid!==user.id);
                 const cDisabled=(others.length>=slot.need&&cur!=="care")||(careRemain<=0&&cur!=="care");
                 const aDisabled=adminRemain<=0&&cur!=="admin";
+                const oDisabled=offRemain<=0&&cur!=="off";
                 return(
                   <div key={t.id} className="flex-1">
                     <div className="text-[10px] text-slate-400 mb-0.5">{t.label}</div>
                     <div className="flex gap-0.5">
                       <button disabled={cDisabled} onClick={()=>toggle(key,"care",slot)} className={`flex-1 py-1 rounded text-[10px] ${cur==="care"?"bg-sky-500 text-white":cDisabled?"bg-slate-50 text-slate-300 cursor-not-allowed":"bg-slate-100 hover:bg-sky-100"}`}>돌봄 {wishers.length}/{slot.need}</button>
                       <button disabled={aDisabled} onClick={()=>toggle(key,"admin",slot)} className={`flex-1 py-1 rounded text-[10px] ${cur==="admin"?"bg-emerald-500 text-white":aDisabled?"bg-slate-50 text-slate-300 cursor-not-allowed":"bg-slate-100 hover:bg-emerald-100"}`}>행정</button>
-                      <button onClick={()=>toggle(key,"off",slot)} className={`flex-1 py-1 rounded text-[10px] ${cur==="off"?"bg-orange-400 text-white":"bg-slate-100 hover:bg-orange-100"}`}>휴가</button>
+                      <button disabled={oDisabled} onClick={()=>toggle(key,"off",slot)} className={`flex-1 py-1 rounded text-[10px] ${cur==="off"?"bg-orange-400 text-white":oDisabled?"bg-slate-50 text-slate-300 cursor-not-allowed":"bg-slate-100 hover:bg-orange-100"}`}>휴가</button>
                     </div>
                     {wishers.length>0&&(
                       <div className="text-[10px] mt-0.5 flex flex-wrap gap-0.5">
