@@ -266,24 +266,55 @@ function Login({teachers,onLogin}: {teachers:any[];onLogin:(u:any)=>void}) {
   const [pw,setPw]=useState("");
   const [err,setErr]=useState("");
   const submit = () => {
-    if(mode==="admin"){if(pw==="admin")onLogin({role:"admin"});else setErr("관리자 비밀번호가 틀렸습니다. (기본: admin)");}
-    else{const t=teachers.find((x: any)=>x.id===tid);if(t&&pw===t.pw)onLogin({role:"teacher",id:t.id});else setErr("비밀번호가 틀렸습니다. (기본: 1234)");}
+    if(mode==="admin"){if(pw==="admin")onLogin({role:"admin"});else setErr("관리자 비밀번호가 틀렸습니다.");}
+    else{const t=teachers.find((x: any)=>x.id===tid);if(t&&pw===t.pw)onLogin({role:"teacher",id:t.id});else setErr("비밀번호가 틀렸습니다.");}
   };
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-sm">
-        <h1 className="text-xl font-bold text-center mb-1">안골마을학교</h1>
-        <p className="text-center text-slate-500 text-sm mb-6">방학 돌봄 배치 시스템</p>
-        <div className="flex gap-2 mb-5">
-          <button onClick={()=>{setMode("admin");setErr("");}} className={`flex-1 py-2 rounded-lg text-sm font-medium ${mode==="admin"?"bg-indigo-600 text-white":"bg-slate-100"}`}>관리자</button>
-          <button onClick={()=>{setMode("teacher");setErr("");}} className={`flex-1 py-2 rounded-lg text-sm font-medium ${mode==="teacher"?"bg-indigo-600 text-white":"bg-slate-100"}`}>교사</button>
+    <div className="min-h-screen flex flex-col items-center justify-center p-5"
+      style={{background:"linear-gradient(160deg,#1e1b4b 0%,#3730a3 45%,#6d28d9 100%)"}}>
+
+      {/* 상단 학교 브랜딩 */}
+      <div className="text-center mb-8">
+        <div className="w-16 h-16 rounded-2xl bg-white/15 flex items-center justify-center mx-auto mb-4 text-3xl backdrop-blur-sm border border-white/20">
+          🏫
         </div>
-        {mode==="teacher"&&<select value={tid} onChange={e=>setTid(e.target.value)} className="w-full mb-3 p-2.5 border rounded-lg text-sm">{teachers.map((t: any)=><option key={t.id} value={t.id}>{t.name}</option>)}</select>}
-        <input type="password" value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()} placeholder="비밀번호" className="w-full mb-3 p-2.5 border rounded-lg text-sm"/>
-        {err&&<p className="text-red-500 text-xs mb-3">{err}</p>}
-        <button onClick={submit} className="w-full bg-indigo-600 text-white py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 hover:bg-indigo-700"><LogIn size={18}/>로그인</button>
-        <p className="text-xs text-slate-400 mt-4 text-center">관리자: admin / 교사: 1234</p>
+        <h1 className="text-3xl font-bold text-white tracking-tight mb-1">안골마을학교</h1>
+        <p className="text-indigo-200 text-sm font-medium">방학 근무배치 시스템</p>
       </div>
+
+      {/* 로그인 카드 */}
+      <div className="w-full max-w-sm bg-white/10 backdrop-blur-md rounded-3xl border border-white/20 p-6 shadow-2xl">
+        {/* 역할 선택 */}
+        <div className="flex gap-2 mb-5 bg-white/10 rounded-2xl p-1">
+          <button onClick={()=>{setMode("admin");setErr("");}} className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all ${mode==="admin"?"bg-white text-indigo-700 shadow":"text-white/70 hover:text-white"}`}>관리자</button>
+          <button onClick={()=>{setMode("teacher");setErr("");}} className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all ${mode==="teacher"?"bg-white text-indigo-700 shadow":"text-white/70 hover:text-white"}`}>교사</button>
+        </div>
+
+        {/* 교사 선택 */}
+        {mode==="teacher"&&(
+          <select value={tid} onChange={e=>setTid(e.target.value)}
+            className="w-full mb-3 p-3 rounded-xl text-sm font-medium bg-white/15 border border-white/25 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/40"
+            style={{colorScheme:"dark"}}>
+            {teachers.map((t: any)=><option key={t.id} value={t.id} className="text-slate-800 bg-white">{t.name}</option>)}
+          </select>
+        )}
+
+        {/* 비밀번호 */}
+        <input type="password" value={pw} onChange={e=>setPw(e.target.value)}
+          onKeyDown={e=>e.key==="Enter"&&submit()}
+          placeholder="비밀번호"
+          className="w-full mb-4 p-3 rounded-xl text-sm bg-white/15 border border-white/25 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/40"/>
+
+        {err&&<p className="text-red-300 text-xs mb-3 text-center font-medium">{err}</p>}
+
+        {/* 로그인 버튼 */}
+        <button onClick={submit}
+          className="w-full bg-white text-indigo-700 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-indigo-50 active:scale-95 transition-all shadow-lg">
+          <LogIn size={17}/>로그인
+        </button>
+      </div>
+
+      <p className="text-white/30 text-xs mt-6">관리자: admin &nbsp;·&nbsp; 교사: 1234</p>
     </div>
   );
 }
