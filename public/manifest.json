@@ -1,0 +1,11 @@
+{
+  "name": "안골마을학교 근무배치",
+  "short_name": "근무배치",
+  "description": "안골마을학교 방학 근무 배치 시스템",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#4f46e5",
+  "orientation": "portrait",
+  "icons": []
+}
