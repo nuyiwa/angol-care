@@ -700,6 +700,7 @@ function TeacherDashboard({state,vacId,user,update}: {state:AppState;vacId:strin
   const me = state.teachers.find(t=>t.id===user.id);
   const slots = useMemo(()=>getSlots(state,vacId),[state,vacId]);
   const tName = (id: string)=>state.teachers.find(t=>t.id===id)?.name||"?";
+  const [teacherTab,setTeacherTab]=useState<"wish"|"schedule">("wish");
   const [schedView,setSchedView]=useState("list");
   const [scope,setScope]=useState("mine");
 
@@ -740,17 +741,23 @@ function TeacherDashboard({state,vacId,user,update}: {state:AppState;vacId:strin
 
   return(
     <div className="space-y-4">
-      {(v as any).prefDone?.[user.id]&&(
-        <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center justify-between">
-          <div>
-            <div className="font-semibold text-green-700 text-sm">✅ 희망 선택 완료 제출됨</div>
-            <div className="text-xs text-slate-500 mt-0.5">수정이 필요하면 아래에서 변경 후 다시 제출하세요.</div>
-          </div>
-          <button onClick={()=>update(n=>{(n.vacations[vacId as keyof typeof n.vacations] as any).prefDone[user.id]=false;})} className="text-xs text-slate-400 underline ml-3 whitespace-nowrap">수정하기</button>
-        </div>
-      )}
+      {/* 탭 */}
+      <div className="flex gap-1 bg-white rounded-xl p-1 shadow-sm">
+        <button onClick={()=>setTeacherTab("wish")} className={`flex-1 py-2 rounded-lg text-sm font-medium transition ${teacherTab==="wish"?"bg-indigo-600 text-white":"text-slate-500 hover:bg-slate-50"}`}>희망 선택</button>
+        <button onClick={()=>setTeacherTab("schedule")} className={`flex-1 py-2 rounded-lg text-sm font-medium transition ${teacherTab==="schedule"?"bg-indigo-600 text-white":"text-slate-500 hover:bg-slate-50"}`}>확정 스케줄</button>
+      </div>
 
-      <Card title={`${me?.name}님의 희망 시간 선택`}>
+      {teacherTab==="wish"&&<>
+        {(v as any).prefDone?.[user.id]&&(
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center justify-between">
+            <div>
+              <div className="font-semibold text-green-700 text-sm">✅ 희망 선택 완료 제출됨</div>
+              <div className="text-xs text-slate-500 mt-0.5">수정이 필요하면 아래에서 변경 후 다시 제출하세요.</div>
+            </div>
+            <button onClick={()=>update(n=>{(n.vacations[vacId as keyof typeof n.vacations] as any).prefDone[user.id]=false;})} className="text-xs text-slate-400 underline ml-3 whitespace-nowrap">수정하기</button>
+          </div>
+        )}
+        <Card title={`${me?.name}님의 희망 시간 선택`}>
         <div className="flex gap-2 mb-3">
           <div className="flex-1 bg-sky-50 rounded-lg p-2 text-center">
             <div className="text-xs text-sky-600">남은 돌봄 선택</div>
@@ -803,8 +810,9 @@ function TeacherDashboard({state,vacId,user,update}: {state:AppState;vacId:strin
           </button>
         )}
       </Card>
+      </>}
 
-      <div className="bg-white rounded-xl shadow-sm p-4">
+      {teacherTab==="schedule"&&<div className="bg-white rounded-xl shadow-sm p-4">
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <h3 className="font-semibold text-sm text-slate-700">확정 스케줄</h3>
           <div className="flex gap-1.5 flex-wrap">
@@ -865,7 +873,7 @@ function TeacherDashboard({state,vacId,user,update}: {state:AppState;vacId:strin
               })}
             </div>
         )}
-      </div>
+      </div>}
     </div>
   );
 }
