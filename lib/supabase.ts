@@ -25,6 +25,32 @@ export async function saveState(state: unknown): Promise<void> {
   if (error) console.error('Supabase save error:', error)
 }
 
+// 교사 저장: 서버 최신 상태를 먼저 읽고 자신의 prefs만 덮어써서 저장 (동시 저장 충돌 방지)
+export async function saveTeacherPrefs(localState: unknown, userId: string): Promise<void> {
+  const { data: serverData } = await loadState()
+  const local = localState as any
+
+  if (!serverData) {
+    await saveState(local)
+    return
+  }
+
+  const merged = structuredClone(serverData) as any
+  for (const vacId of Object.keys(local.vacations ?? {})) {
+    if (!merged.vacations?.[vacId]) continue
+    merged.vacations[vacId].prefs = {
+      ...merged.vacations[vacId].prefs,
+      [userId]: local.vacations[vacId].prefs?.[userId] ?? {}
+    }
+    merged.vacations[vacId].prefDone = {
+      ...merged.vacations[vacId].prefDone,
+      [userId]: local.vacations[vacId].prefDone?.[userId] ?? false
+    }
+  }
+
+  await saveState(merged)
+}
+
 export async function getServerUpdatedAt(): Promise<string | null> {
   const { data } = await supabase
     .from('app_state')

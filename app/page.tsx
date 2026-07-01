@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Calendar, Users, Settings, LogIn, LogOut, Shuffle, ChevronLeft, ChevronRight, Plus, Trash2, Check, X, BarChart3, Star, Clock } from "lucide-react";
-import { loadState, saveState, getServerUpdatedAt } from "@/lib/supabase";
+import { loadState, saveState, saveTeacherPrefs, getServerUpdatedAt } from "@/lib/supabase";
 
 // ── 상수 ──
 const VACATIONS = [{ id:"spring",label:"봄방학" },{ id:"summer",label:"여름방학" },{ id:"fall",label:"가을방학" },{ id:"winter",label:"겨울방학" }];
@@ -70,9 +70,9 @@ function getCareWishes(state: AppState, vacId: string) {
 }
 
 function countWishes(prefs: Record<string,any>) {
-  let care=0,admin=0;
-  Object.entries(prefs||{}).forEach(([k,v])=>{ if(k.startsWith("__")) return; if(v==="care") care++; else if(v==="admin") admin++; });
-  return {care,admin};
+  let care=0,admin=0,off=0;
+  Object.entries(prefs||{}).forEach(([k,v])=>{ if(k.startsWith("__")) return; if(v==="care") care++; else if(v==="admin") admin++; else if(v==="off") off++; });
+  return {care,admin,off};
 }
 
 function getCareTarget(state: AppState, vacId: string) {
@@ -143,6 +143,11 @@ export default function App() {
   const [tab, setTab] = useState("schedule");
   const [activeVac, setActiveVac] = useState("winter");
   const serverTimestampRef = useRef<string>('');
+  const isDirtyRef = useRef(false);       // 저장 안 된 변경사항 있음
+  const isPollUpdateRef = useRef(false);  // 폴링으로 인한 setState 구분
+  const userRef = useRef<{role:string;id?:string}|null>(null);
+
+  useEffect(() => { userRef.current = user; }, [user]);
 
   useEffect(() => {
     loadState().then(({ data, updatedAt }) => {
@@ -154,22 +159,33 @@ export default function App() {
 
   useEffect(() => {
     if (!isLoaded || !state) return;
+    // 폴링으로 인한 setState면 저장하지 않음
+    if (isPollUpdateRef.current) { isPollUpdateRef.current = false; return; }
+    isDirtyRef.current = true;
+    const currentUser = userRef.current;
     const timer = setTimeout(async () => {
       const now = new Date().toISOString();
-      await saveState(state);
+      if (currentUser?.role === 'teacher' && currentUser.id) {
+        await saveTeacherPrefs(state, currentUser.id); // 교사: 자신의 prefs만 merge 저장
+      } else {
+        await saveState(state); // 관리자: 전체 저장
+      }
       serverTimestampRef.current = now;
+      isDirtyRef.current = false;
     }, 800);
     return () => clearTimeout(timer);
   }, [state, isLoaded]);
 
-  // 30초마다 서버 변경 확인 → 최신 데이터 자동 반영
+  // 30초마다 서버 변경 확인 → 미저장 변경사항 없을 때만 반영
   useEffect(() => {
     if (!isLoaded) return;
     const interval = setInterval(async () => {
+      if (isDirtyRef.current) return; // 저장 중이면 폴링 건너뜀
       const serverTs = await getServerUpdatedAt();
       if (serverTs && serverTs > serverTimestampRef.current) {
         const { data, updatedAt } = await loadState();
         if (data) {
+          isPollUpdateRef.current = true;
           setState(data as AppState);
           serverTimestampRef.current = updatedAt ?? serverTs;
         }
@@ -454,6 +470,7 @@ function WishGrid({state,vacId,update,slots,careWishes,careTarget}: any) {
         <select value={sel} onChange={e=>setSel(e.target.value)} className="p-2 border rounded-lg text-sm">{state.teachers.map((t: any)=><option key={t.id} value={t.id}>{t.name}</option>)}</select>
         <span className="text-xs bg-sky-50 text-sky-700 px-2 py-1.5 rounded-lg">남은 돌봄 {careRemain}/{careTarget.limit}</span>
         <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-1.5 rounded-lg">남은 행정 {adminRemain}/{v.adminCount}</span>
+        <span className="text-xs bg-orange-50 text-orange-700 px-2 py-1.5 rounded-lg">사용 휴가 {wc.off}회</span>
       </div>
       <div className="max-h-72 overflow-y-auto space-y-1">
         {Object.entries(byDate).map(([d,ss])=>(
@@ -725,6 +742,10 @@ function TeacherDashboard({state,vacId,user,update}: {state:AppState;vacId:strin
           <div className="flex-1 bg-emerald-50 rounded-lg p-2 text-center">
             <div className="text-xs text-emerald-600">남은 행정 선택</div>
             <div className="text-lg font-bold text-emerald-700">{adminRemain}<span className="text-xs font-normal text-slate-400"> / {(v as any).adminCount}</span></div>
+          </div>
+          <div className="flex-1 bg-orange-50 rounded-lg p-2 text-center">
+            <div className="text-xs text-orange-600">사용 휴가</div>
+            <div className="text-lg font-bold text-orange-700">{wc.off}<span className="text-xs font-normal text-slate-400">회</span></div>
           </div>
         </div>
         <p className="text-xs text-slate-500 mb-2">돌봄은 선착순, 한도({careTarget.limit}회)까지 선택 가능. 정원 마감 칸은 선택 불가. <b>휴가</b> 표시 시간은 배치 제외.</p>
