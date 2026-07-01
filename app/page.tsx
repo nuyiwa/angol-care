@@ -106,12 +106,19 @@ function autoAssign(state: AppState, vacId: string) {
   teachers.forEach(t=>{ load[t.id]=-(state.yearlyOffset[t.id]||0); });
 
   const isMtMember = (d: string,t: string,id: string) => { const mt=v.meetings[`${d}_${t}`]; return mt&&mt.members.includes(id); };
-  const wantsOff = (d: string,t: string,id: string) => v.prefs[id]?.[`${d}_${t}`]==="off";
+  const wantsOff   = (d: string,t: string,id: string) => v.prefs[id]?.[`${d}_${t}`]==="off";
+  const wantsAdmin = (d: string,t: string,id: string) => v.prefs[id]?.[`${d}_${t}`]==="admin";
+  // 같은 날 다른 타임에 이미 돌봄 배치됐는지 (랜덤 배치 시 연속 방지용)
+  const careToday  = (date: string,time: string,id: string) => {
+    const other = time==="am"?"pm":"am";
+    return assignments[`${date}_${other}`]?.care?.includes(id)??false;
+  };
 
   const tryPlaceCare = (slot: any,tid: string) => {
     const a=assignments[slot.key];
     if(!a||a.care.length>=slot.need||a.care.includes(tid)||a.admin.includes(tid)) return false;
     if(isMtMember(slot.date,slot.time,tid)||wantsOff(slot.date,slot.time,tid)) return false;
+    if(wantsAdmin(slot.date,slot.time,tid)) return false; // 행정 희망 슬롯은 돌봄 제외
     a.care.push(tid); load[tid]++; return true;
   };
 
@@ -123,7 +130,7 @@ function autoAssign(state: AppState, vacId: string) {
   for (const slot of [...slots].sort(()=>Math.random()-.5)) {
     const a=assignments[slot.key];
     while(a.care.length<slot.need) {
-      const cands=teachers.filter(t=>!a.care.includes(t.id)&&!a.admin.includes(t.id)&&!isMtMember(slot.date,slot.time,t.id)&&!wantsOff(slot.date,slot.time,t.id)).sort((x,y)=>load[x.id]-load[y.id]||Math.random()-.5);
+      const cands=teachers.filter(t=>!a.care.includes(t.id)&&!a.admin.includes(t.id)&&!isMtMember(slot.date,slot.time,t.id)&&!wantsOff(slot.date,slot.time,t.id)&&!wantsAdmin(slot.date,slot.time,t.id)&&!careToday(slot.date,slot.time,t.id)).sort((x,y)=>load[x.id]-load[y.id]||Math.random()-.5);
       if(!cands.length) break;
       tryPlaceCare(slot,cands[0].id);
     }
@@ -918,16 +925,22 @@ function ScheduleCalendar({allDates,assignments,targetId,tName}: {allDates:strin
     <div className="space-y-5 max-h-96 overflow-y-auto pr-1">
       {Object.entries(byMonth).map(([ym,dates])=>{
         const[y,m]=ym.split("-").map(Number);
+        const vacDateSet=new Set(dates);
+        const daysInMonth=new Date(y,m,0).getDate();
         const firstDow=new Date(y,m-1,1).getDay();
-        const cells: (string|null)[]=Array(firstDow).fill(null).concat(dates);
-        while(cells.length%7!==0) cells.push(null);
+        const cells: string[]=[];
+        for(let day=1;day<=daysInMonth;day++) cells.push(`${y}-${String(m).padStart(2,"0")}-${String(day).padStart(2,"0")}`);
+        const padded: (string|null)[]=[...Array(firstDow).fill(null),...cells];
+        while(padded.length%7!==0) padded.push(null);
         return(
           <div key={ym}>
             <div className="font-semibold text-sm text-slate-600 mb-1">{y}년 {m}월</div>
             <div className="grid grid-cols-7 text-center text-[10px] text-slate-400 mb-0.5">{DOW.map(d=><div key={d}>{d}</div>)}</div>
             <div className="grid grid-cols-7 gap-0.5">
-              {cells.map((d,i)=>{
+              {padded.map((d,i)=>{
                 if(!d) return <div key={i}/>;
+                const isVac=vacDateSet.has(d);
+                if(!isVac) return <div key={d} className="rounded-lg p-0.5 min-h-[52px] bg-slate-50 opacity-30"><div className="text-[10px] px-0.5 text-slate-300">{parse(d).getDate()}</div></div>;
                 const dow=parse(d).getDay();
                 const holiday=HOLIDAYS[d];
                 const isWknd=dow===0||dow===6;
