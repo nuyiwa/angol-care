@@ -394,11 +394,11 @@ function SettingsView({state,vacId,update}: {state:AppState;vacId:string;update:
           <Field label="날짜"><input type="date" min={v.start||undefined} max={v.end||undefined} value={dayCount.date} onChange={e=>setDayCount({...dayCount,date:e.target.value})} className="p-2 border rounded-lg text-sm"/></Field>
           <Field label="타임"><select value={dayCount.time} onChange={e=>setDayCount({...dayCount,time:e.target.value})} className="p-2 border rounded-lg text-sm"><option value="both">종일</option><option value="am">오전</option><option value="pm">오후</option></select></Field>
           <Field label="돌봄 인원"><input type="number" min={0} max={7} value={dayCount.count} onChange={e=>setDayCount({...dayCount,count:+e.target.value})} className="p-2 border rounded-lg text-sm w-20"/></Field>
-          <button onClick={()=>{if(dayCount.date){update(n=>{const dc=(n.vacations[vacId as keyof typeof n.vacations] as any).dayCareCount;const times=dayCount.time==="both"?["am","pm"]:[dayCount.time];times.forEach(t=>{dc[`${dayCount.date}_${t}`]=dayCount.count;});});setDayCount({date:"",time:"both",count:1});}}} className="bg-indigo-600 text-white px-3 py-2 rounded-lg text-sm flex items-center gap-1"><Plus size={16}/>추가</button>
+          <button onClick={()=>{if(dayCount.date){update(n=>{const vac=(n.vacations[vacId as keyof typeof n.vacations] as any);if(!vac.dayCareCount)vac.dayCareCount={};const times=dayCount.time==="both"?["am","pm"]:[dayCount.time];times.forEach(t=>{vac.dayCareCount[`${dayCount.date}_${t}`]=dayCount.count;});});setDayCount({date:"",time:"both",count:1});}}} className="bg-indigo-600 text-white px-3 py-2 rounded-lg text-sm flex items-center gap-1"><Plus size={16}/>추가</button>
         </div>
         <div className="flex flex-wrap gap-2">
           {Object.entries((v as any).dayCareCount||{}).sort().map(([k,c])=>{const[d,t]=k.split("_");return(
-            <span key={k} className="bg-indigo-50 text-indigo-700 text-xs px-2 py-1 rounded-lg flex items-center gap-1">{d} {t==="am"?"오전":"오후"} ({c as number}명)<button onClick={()=>update(n=>{delete (n.vacations[vacId as keyof typeof n.vacations] as any).dayCareCount[k];})}><X size={12}/></button></span>
+            <span key={k} className="bg-indigo-50 text-indigo-700 text-xs px-2 py-1 rounded-lg flex items-center gap-1">{d} {t==="am"?"오전":"오후"} ({c as number}명)<button onClick={()=>update(n=>{const vac=(n.vacations[vacId as keyof typeof n.vacations] as any);if(vac.dayCareCount)delete vac.dayCareCount[k];})}><X size={12}/></button></span>
           );})}
           {!Object.keys((v as any).dayCareCount||{}).length&&<span className="text-slate-400 text-xs">없음 (기본 인원 {v.careCount}명 적용)</span>}
         </div>
