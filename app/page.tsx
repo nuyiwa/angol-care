@@ -28,7 +28,7 @@ const eachDate = (s: string,e: string) => { if(!s||!e) return []; const out: str
 
 // ── 초기값 ──
 const initTeachers = ["이주현","박미소","정설","강은경","김진선","김향","정승민"].map((n,i)=>({id:`t${i+1}`,name:n,pw:"1234"}));
-const blankVac = () => ({ start:"",end:"",careCount:2,adminCount:2,specialDays:{} as Record<string,string>,sparkTeachers:[] as any[],meetings:{} as Record<string,any>,prefs:{} as Record<string,any>,prefDone:{} as Record<string,boolean>,assignments:{} as Record<string,any>,published:false });
+const blankVac = () => ({ start:"",end:"",careCount:2,adminCount:2,specialDays:{} as Record<string,string>,dayCareCount:{} as Record<string,number>,sparkTeachers:[] as any[],meetings:{} as Record<string,any>,prefs:{} as Record<string,any>,prefDone:{} as Record<string,boolean>,assignments:{} as Record<string,any>,published:false });
 const defState = () => ({ teachers:initTeachers, vacations:{spring:blankVac(),summer:blankVac(),fall:blankVac(),winter:blankVac()}, yearlyOffset:{} as Record<string,number> });
 
 type AppState = ReturnType<typeof defState>
@@ -49,7 +49,8 @@ function getSlots(state: AppState, vacId: string) {
       const mt = v.meetings[mKey];
       if (mt?.type==="all") continue;
       const hasSpark = v.sparkTeachers.some((s: any)=>d>=s.start&&d<=s.end&&s.time===t.id);
-      const need = Math.max(0,(v.careCount||0)-(hasSpark?1:0));
+      const baseCount = (v as any).dayCareCount?.[d] ?? (v.careCount||0);
+      const need = Math.max(0,baseCount-(hasSpark?1:0));
       out.push({date:d,time:t.id,key:mKey,need,meeting:mt});
     }
   }
@@ -159,6 +160,7 @@ export default function App() {
   const [state, setState] = useState<AppState | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [user, setUser] = useState<{role:string;id?:string}|null>(null);
+  const [hasUpdate, setHasUpdate] = useState(false);
   const [tab, setTab] = useState("schedule");
   const [activeVac, setActiveVac] = useState("winter");
   const serverTimestampRef = useRef<string>('');
@@ -213,6 +215,22 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isLoaded]);
 
+  // 빌드 버전 체크 (iOS PWA 캐시 감지)
+  useEffect(() => {
+    const stored = sessionStorage.getItem("__bv");
+    const current = process.env.NEXT_PUBLIC_BUILD_TIME ?? "";
+    if (stored && stored !== current) { setHasUpdate(true); return; }
+    if (!stored) sessionStorage.setItem("__bv", current);
+    const check = setInterval(async () => {
+      try {
+        const res = await fetch("/api/version", { cache: "no-store" });
+        const { v } = await res.json();
+        if (v && v !== current) { setHasUpdate(true); clearInterval(check); }
+      } catch {}
+    }, 60000);
+    return () => clearInterval(check);
+  }, []);
+
   const update = (fn: (n: AppState) => void) => setState(s => { const n = structuredClone(s!); fn(n); return n; });
 
   if (!isLoaded || !state) return (
@@ -238,6 +256,7 @@ export default function App() {
         </div>
       </header>
 
+      {hasUpdate&&<div className="bg-indigo-600 text-white text-sm text-center py-2 px-4 flex items-center justify-center gap-3">새 버전이 있습니다<button onClick={()=>{sessionStorage.removeItem("__bv");location.reload();}} className="bg-white text-indigo-700 font-semibold px-3 py-0.5 rounded-full text-xs">새로고침</button></div>}
       <div className="max-w-5xl mx-auto px-3 pb-20 pt-4">
         <div className="flex gap-1 mb-4 bg-white rounded-xl p-1 shadow-sm">
           {VACATIONS.map(v=>(
@@ -331,6 +350,7 @@ function SettingsView({state,vacId,update}: {state:AppState;vacId:string;update:
   const v = state.vacations[vacId as keyof typeof state.vacations];
   const [spark,setSpark]=useState({start:"",end:"",time:"pm"});
   const [special,setSpecial]=useState({date:"",type:"full"});
+  const [dayCount,setDayCount]=useState({date:"",count:1});
   const [meet,setMeet]=useState<{date:string;time:string;type:string;members:string[]}>({date:"",time:"am",type:"all",members:[]});
   const [msg,setMsg]=useState("");
   const sf = (k: string,val: any)=>update(n=>{(n.vacations[vacId as keyof typeof n.vacations] as any)[k]=val;});
@@ -365,6 +385,21 @@ function SettingsView({state,vacId,update}: {state:AppState;vacId:string;update:
         <div className="grid grid-cols-2 gap-3">
           <Field label="타임당 필요 돌봄 인원"><input type="number" min={0} max={7} value={v.careCount} onChange={e=>sf("careCount",+e.target.value)} className="w-full p-2 border rounded-lg text-sm"/></Field>
           <Field label="교사당 행정 횟수(방학)"><input type="number" min={0} value={v.adminCount} onChange={e=>sf("adminCount",+e.target.value)} className="w-full p-2 border rounded-lg text-sm"/></Field>
+        </div>
+      </Card>
+
+      <Card title="날짜별 돌봄 인원 조정">
+        <p className="text-xs text-slate-500 mb-2">기본 인원과 다른 날만 등록하세요</p>
+        <div className="flex gap-2 items-end mb-3 flex-wrap">
+          <Field label="날짜"><input type="date" min={v.start||undefined} max={v.end||undefined} value={dayCount.date} onChange={e=>setDayCount({...dayCount,date:e.target.value})} className="p-2 border rounded-lg text-sm"/></Field>
+          <Field label="돌봄 인원"><input type="number" min={0} max={7} value={dayCount.count} onChange={e=>setDayCount({...dayCount,count:+e.target.value})} className="p-2 border rounded-lg text-sm w-20"/></Field>
+          <button onClick={()=>{if(dayCount.date){update(n=>{(n.vacations[vacId as keyof typeof n.vacations] as any).dayCareCount[dayCount.date]=dayCount.count;});setDayCount({date:"",count:1});}}} className="bg-indigo-600 text-white px-3 py-2 rounded-lg text-sm flex items-center gap-1"><Plus size={16}/>추가</button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {Object.entries((v as any).dayCareCount||{}).sort().map(([d,c])=>(
+            <span key={d} className="bg-indigo-50 text-indigo-700 text-xs px-2 py-1 rounded-lg flex items-center gap-1">{d} ({c as number}명)<button onClick={()=>update(n=>{delete (n.vacations[vacId as keyof typeof n.vacations] as any).dayCareCount[d];})}><X size={12}/></button></span>
+          ))}
+          {!Object.keys((v as any).dayCareCount||{}).length&&<span className="text-slate-400 text-xs">없음 (기본 인원 {v.careCount}명 적용)</span>}
         </div>
       </Card>
 
